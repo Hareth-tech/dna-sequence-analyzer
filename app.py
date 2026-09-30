@@ -3,23 +3,26 @@ from Bio import Entrez, SeqIO
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction, MeltingTemp as mt
 import pandas as pd
+import py3Dmol
+from stmol import showmol
 
 # Page Configuration
 st.set_page_config(page_title="BioMedical Sequence & Diagnostic Analyzer", page_icon="🧬", layout="wide")
 
-st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v2.1)")
-st.write("An engineering-focused bioinformatics platform featuring direct NCBI genomic database retrieval and diagnostic workflow analysis.")
+st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v3.0)")
+st.write("An engineering-focused bioinformatics platform featuring direct NCBI genomic retrieval, 3D macromolecular visualization, and clinical diagnostic workflows.")
 
 # Initialize session state for sequence sharing across tabs
 if 'shared_sequence' not in st.session_state:
     st.session_state['shared_sequence'] = "ATGCGATCGATCGATCGATCGATCGATCGATCTAG"
 
 # Application Navigation Tabs
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🌐 NCBI Direct Fetcher",
     "📊 Basic Analysis & Translation", 
     "🔬 Diagnostic PCR Primer Design", 
-    "🩺 Clinical Mutation Detector"
+    "🩺 Clinical Mutation Detector",
+    "🧊 3D Protein Structure Viewer"
 ])
 
 # ---------------------------------------------------------
@@ -62,7 +65,6 @@ with tab1:
                     st.subheader("🧬 FASTA Nucleotide Sequence")
                     st.text_area("Fetched DNA Sequence:", fetched_str, height=180, key="fetched_seq_box")
                     
-                    # Pass sequence to Session State so other tabs can load it automatically
                     st.session_state['shared_sequence'] = fetched_str
                     st.info("💡 This sequence has been automatically transferred to the 'Basic Analysis & Translation' tab!")
                     
@@ -104,7 +106,7 @@ with tab2:
                 df = pd.DataFrame(list(aa_counts.items()), columns=['Amino Acid', 'Frequency']).set_index('Amino Acid')
                 st.bar_chart(df)
         else:
-            st.error("⚠️️ Invalid DNA sequence! Please use A, T, C, G bases only.")
+            st.error("⚠️ Invalid DNA sequence! Please use A, T, C, G bases only.")
 
 # ---------------------------------------------------------
 # TAB 3: Diagnostic PCR Primer Design
@@ -161,3 +163,35 @@ with tab4:
                 st.table(mut_df)
             else:
                 st.success("✅ No point mutations detected! Patient sequence matches reference 100%.")
+
+# ---------------------------------------------------------
+# TAB 5: 3D Protein Structure Viewer (PDB Integration)
+# ---------------------------------------------------------
+with tab5:
+    st.header("🧊 3D Macromolecular & Protein Structure Viewer")
+    st.write("Render 3D protein structures fetched directly from the RCSB Protein Data Bank (PDB) using interactive spatial rendering.")
+    
+    p_col1, p_col2, p_col3 = st.columns([2, 1, 1])
+    with p_col1:
+        pdb_id = st.text_input("Enter 4-character PDB ID:", "1TCO", help="Examples: 1TCO, 4HHB (Hemoglobin), 6VXX (SARS-CoV-2 Spike Protein)").strip().upper()
+    with p_col2:
+        style_choice = st.selectbox("Style:", ["cartoon", "sphere", "stick", "line"])
+    with p_col3:
+        spin_toggle = st.checkbox("Rotate 3D", value=True)
+        
+    if pdb_id:
+        if len(pdb_id) == 4:
+            try:
+                with st.spinner(f"Loading 3D structure for PDB ID '{pdb_id}'..."):
+                    xyzview = py3Dmol.view(query=f'pdb:{pdb_id}')
+                    xyzview.setStyle({style_choice: {'color': 'spectrum'}})
+                    if spin_toggle:
+                        xyzview.spin(True)
+                    else:
+                        xyzview.spin(False)
+                    showmol(xyzview, height=500, width=800)
+                    st.caption(f"📍 Interactive 3D view for PDB Entry: **{pdb_id}** from RCSB Protein Data Bank.")
+            except Exception as e:
+                st.error(f"❌ Failed to load PDB ID '{pdb_id}'. Error: {str(e)}")
+        else:
+            st.warning("⚠️ PDB IDs must be exactly 4 characters (e.g., 1TCO, 4HHB).")
