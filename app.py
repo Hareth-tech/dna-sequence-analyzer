@@ -1,10 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from Bio import Entrez, SeqIO
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction, MeltingTemp as mt
 import pandas as pd
-import py3Dmol
-from stmol import showmol
 
 # Page Configuration
 st.set_page_config(page_title="BioMedical Sequence & Diagnostic Analyzer", page_icon="🧬", layout="wide")
@@ -70,7 +69,6 @@ with tab1:
                     
             except Exception as e:
                 st.error(f"❌ Failed to retrieve record from NCBI. Error: {str(e)}")
-                st.write("Please verify the Accession ID and check your internet connection.")
 
 # ---------------------------------------------------------
 # TAB 2: Basic Analysis & Translation
@@ -135,8 +133,6 @@ with tab3:
                 st.success("✅ **Optimal Primer:** Excellent parameters for standard diagnostic PCR assays.")
             else:
                 st.warning("⚠️ **Sub-optimal Primer:** Parameters fall outside ideal qPCR device limits ($T_m$: 55-65°C, GC: 40-60%, Length: 18-30 bp).")
-        else:
-            st.error("⚠️ Invalid primer bases! Use A, T, C, G only.")
 
 # ---------------------------------------------------------
 # TAB 4: Clinical Mutation Detector
@@ -165,33 +161,37 @@ with tab4:
                 st.success("✅ No point mutations detected! Patient sequence matches reference 100%.")
 
 # ---------------------------------------------------------
-# TAB 5: 3D Protein Structure Viewer (PDB Integration)
+# TAB 5: 3D Protein Structure Viewer (Native Render)
 # ---------------------------------------------------------
 with tab5:
     st.header("🧊 3D Macromolecular & Protein Structure Viewer")
-    st.write("Render 3D protein structures fetched directly from the RCSB Protein Data Bank (PDB) using interactive spatial rendering.")
+    st.write("Render 3D protein structures fetched directly from the RCSB Protein Data Bank (PDB) in real time.")
     
     p_col1, p_col2, p_col3 = st.columns([2, 1, 1])
     with p_col1:
-        pdb_id = st.text_input("Enter 4-character PDB ID:", "1TCO", help="Examples: 1TCO, 4HHB (Hemoglobin), 6VXX (SARS-CoV-2 Spike Protein)").strip().upper()
+        pdb_id = st.text_input("Enter 4-character PDB ID:", "1TCO", help="Examples: 1TCO, 4HHB, 6VXX").strip().upper()
     with p_col2:
         style_choice = st.selectbox("Style:", ["cartoon", "sphere", "stick", "line"])
     with p_col3:
         spin_toggle = st.checkbox("Rotate 3D", value=True)
         
-    if pdb_id:
-        if len(pdb_id) == 4:
-            try:
-                with st.spinner(f"Loading 3D structure for PDB ID '{pdb_id}'..."):
-                    xyzview = py3Dmol.view(query=f'pdb:{pdb_id}')
-                    xyzview.setStyle({style_choice: {'color': 'spectrum'}})
-                    if spin_toggle:
-                        xyzview.spin(True)
-                    else:
-                        xyzview.spin(False)
-                    showmol(xyzview, height=500, width=800)
-                    st.caption(f"📍 Interactive 3D view for PDB Entry: **{pdb_id}** from RCSB Protein Data Bank.")
-            except Exception as e:
-                st.error(f"❌ Failed to load PDB ID '{pdb_id}'. Error: {str(e)}")
-        else:
-            st.warning("⚠️ PDB IDs must be exactly 4 characters (e.g., 1TCO, 4HHB).")
+    if pdb_id and len(pdb_id) == 4:
+        spin_code = "viewer.spin(true);" if spin_toggle else ""
+        html_3d_code = f"""
+        <div id="container" style="width: 100%; height: 500px; position: relative;"></div>
+        <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+        <script>
+            let element = document.getElementById('container');
+            let config = {{ backgroundColor: 'white' }};
+            let viewer = $3Dmol.createViewer(element, config);
+            $3Dmol.download('pdb:{pdb_id}', viewer, {{}}, function() {{
+                viewer.setStyle({{}}, {{{style_choice}: {{color: 'spectrum'}}}});
+                {spin_code}
+                viewer.render();
+            }});
+        </script>
+        """
+        components.html(html_3d_code, height=520)
+        st.caption(f"📍 Interactive 3D view for PDB Entry: **{pdb_id}** from RCSB Protein Data Bank.")
+    elif pdb_id:
+        st.warning("⚠️ PDB IDs must be exactly 4 characters (e.g., 1TCO, 4HHB).")
