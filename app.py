@@ -8,7 +8,7 @@ import pandas as pd
 # Page Configuration
 st.set_page_config(page_title="BioMedical Sequence & Diagnostic Analyzer", page_icon="🧬", layout="wide")
 
-st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v3.0)")
+st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v3.1)")
 st.write("An engineering-focused bioinformatics platform featuring direct NCBI genomic retrieval, 3D macromolecular visualization, and clinical diagnostic workflows.")
 
 # Initialize session state for sequence sharing across tabs
@@ -161,37 +161,39 @@ with tab4:
                 st.success("✅ No point mutations detected! Patient sequence matches reference 100%.")
 
 # ---------------------------------------------------------
-# TAB 5: 3D Protein Structure Viewer (Native Render)
+# TAB 5: 3D Protein Structure Viewer (Mobile Optimized)
 # ---------------------------------------------------------
 with tab5:
     st.header("🧊 3D Macromolecular & Protein Structure Viewer")
-    st.write("Render 3D protein structures fetched directly from the RCSB Protein Data Bank (PDB) in real time.")
+    st.write("Render 3D protein structures from PDB. *Optimized for mobile GPUs.*")
     
-    p_col1, p_col2, p_col3 = st.columns([2, 1, 1])
+    p_col1, p_col2 = st.columns([2, 1])
     with p_col1:
-        pdb_id = st.text_input("Enter 4-character PDB ID:", "1TCO", help="Examples: 1TCO, 4HHB, 6VXX").strip().upper()
+        pdb_id = st.text_input("Enter 4-character PDB ID:", "1CRN", help="Recommended light structures: 1CRN (Ultra-light), 1TCO, 4HHB").strip().upper()
     with p_col2:
-        style_choice = st.selectbox("Style:", ["cartoon", "sphere", "stick", "line"])
-    with p_col3:
-        spin_toggle = st.checkbox("Rotate 3D", value=True)
+        style_choice = st.selectbox("Style:", ["cartoon", "stick", "sphere", "line"])
         
-    if pdb_id and len(pdb_id) == 4:
-        spin_code = "viewer.spin(true);" if spin_toggle else ""
-        html_3d_code = f"""
-        <div id="container" style="width: 100%; height: 500px; position: relative;"></div>
-        <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
-        <script>
-            let element = document.getElementById('container');
-            let config = {{ backgroundColor: 'white' }};
-            let viewer = $3Dmol.createViewer(element, config);
-            $3Dmol.download('pdb:{pdb_id}', viewer, {{}}, function() {{
-                viewer.setStyle({{}}, {{{style_choice}: {{color: 'spectrum'}}}});
-                {spin_code}
-                viewer.render();
-            }});
-        </script>
-        """
-        components.html(html_3d_code, height=520)
-        st.caption(f"📍 Interactive 3D view for PDB Entry: **{pdb_id}** from RCSB Protein Data Bank.")
-    elif pdb_id:
-        st.warning("⚠️ PDB IDs must be exactly 4 characters (e.g., 1TCO, 4HHB).")
+    spin_toggle = st.checkbox("Enable 3D Auto-Rotation (Uses extra GPU)", value=False)
+    render_btn = st.button("🚀 Render 3D Model", use_container_width=True)
+    
+    if render_btn and pdb_id:
+        if len(pdb_id) == 4:
+            spin_code = "viewer.spin(true);" if spin_toggle else ""
+            html_3d_code = f"""
+            <div id="container" style="width: 100%; height: 380px; position: relative;"></div>
+            <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+            <script>
+                let element = document.getElementById('container');
+                let config = {{ backgroundColor: 'white' }};
+                let viewer = $3Dmol.createViewer(element, config);
+                $3Dmol.download('pdb:{pdb_id}', viewer, {{}}, function() {{
+                    viewer.setStyle({{}}, {{{style_choice}: {{color: 'spectrum'}}}});
+                    {spin_code}
+                    viewer.render();
+                }});
+            </script>
+            """
+            components.html(html_3d_code, height=400)
+            st.caption(f"📍 Rendered PDB Entry: **{pdb_id}** from RCSB Protein Data Bank.")
+        else:
+            st.warning("⚠️ PDB IDs must be exactly 4 characters.")
