@@ -1,27 +1,86 @@
 import streamlit as st
+from Bio import Entrez, SeqIO
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction, MeltingTemp as mt
 import pandas as pd
 
-# ضبط إعدادات الصفحة
+# Page Configuration
 st.set_page_config(page_title="BioMedical Sequence & Diagnostic Analyzer", page_icon="🧬", layout="wide")
 
-st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v2.0)")
-st.write("An engineering-focused bioinformatics tool bridging clinical sequence analysis with diagnostic parameters.")
+st.title("🧬 BioMedical Sequence & Diagnostic Analyzer (v2.1)")
+st.write("An engineering-focused bioinformatics platform featuring direct NCBI genomic database retrieval and diagnostic workflow analysis.")
 
-# تقسيم التطبيق إلى 3 أجزاء رئيسية
-tab1, tab2, tab3 = st.tabs([
+# Initialize session state for sequence sharing across tabs
+if 'shared_sequence' not in st.session_state:
+    st.session_state['shared_sequence'] = "ATGCGATCGATCGATCGATCGATCGATCGATCTAG"
+
+# Application Navigation Tabs
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🌐 NCBI Direct Fetcher",
     "📊 Basic Analysis & Translation", 
-    "🔬 Diagnostic Primer Design (PCR)", 
+    "🔬 Diagnostic PCR Primer Design", 
     "🩺 Clinical Mutation Detector"
 ])
 
 # ---------------------------------------------------------
-# TAB 1: التحليل الأساسي والترجمة
+# TAB 1: NCBI Database Integration (Entrez API)
 # ---------------------------------------------------------
 with tab1:
+    st.header("🌐 NCBI Entrez Database Direct Fetcher")
+    st.write("Fetch nucleotide sequences directly from the National Center for Biotechnology Information (NCBI) database using Accession IDs.")
+    
+    col_entrez_1, col_entrez_2 = st.columns([2, 1])
+    with col_entrez_1:
+        accession_id = st.text_input("Enter NCBI Accession Number / ID:", "NM_000207", help="Examples: NM_000207 (Human Insulin), NC_045512 (SARS-CoV-2 genome)").strip()
+    with col_entrez_2:
+        user_email = st.text_input("Enter Email Address (NCBI Requirement):", "researcher@example.com").strip()
+        
+    fetch_button = st.button("🔍 Fetch Sequence from NCBI", use_container_width=True)
+    
+    if fetch_button:
+        if not accession_id:
+            st.error("⚠️ Please enter a valid NCBI Accession Number.")
+        elif not user_email or "@" not in user_email:
+            st.error("⚠️ Please enter a valid email address required by NCBI Entrez policy.")
+        else:
+            try:
+                with st.spinner(f"Fetching record '{accession_id}' from NCBI Nucleotide database..."):
+                    Entrez.email = user_email
+                    handle = Entrez.efetch(db="nucleotide", id=accession_id, rettype="fasta", retmode="text")
+                    record = SeqIO.read(handle, "fasta")
+                    handle.close()
+                    
+                    st.success(f"✅ Successfully fetched: {record.id}")
+                    st.subheader("📋 Sequence Metadata")
+                    st.write(f"**Description:** {record.description}")
+                    
+                    m_col1, m_col2 = st.columns(2)
+                    m_col1.metric("Sequence Length (bp)", len(record.seq))
+                    m_col2.metric("GC-Content", f"{gc_fraction(record.seq)*100:.2f}%")
+                    
+                    fetched_str = str(record.seq).upper()
+                    st.subheader("🧬 FASTA Nucleotide Sequence")
+                    st.text_area("Fetched DNA Sequence:", fetched_str, height=180, key="fetched_seq_box")
+                    
+                    # Pass sequence to Session State so other tabs can load it automatically
+                    st.session_state['shared_sequence'] = fetched_str
+                    st.info("💡 This sequence has been automatically transferred to the 'Basic Analysis & Translation' tab!")
+                    
+            except Exception as e:
+                st.error(f"❌ Failed to retrieve record from NCBI. Error: {str(e)}")
+                st.write("Please verify the Accession ID and check your internet connection.")
+
+# ---------------------------------------------------------
+# TAB 2: Basic Analysis & Translation
+# ---------------------------------------------------------
+with tab2:
     st.header("📊 Sequence Analysis & Central Dogma")
-    sequence_input = st.text_area("Enter DNA sequence:", "ATGCGATCGATCGATCGATCGATCGATCGATCTAG", height=120, key="t1_seq")
+    sequence_input = st.text_area(
+        "Enter DNA sequence (or edit fetched NCBI sequence):", 
+        value=st.session_state['shared_sequence'], 
+        height=150, 
+        key="t2_seq"
+    )
     cleaned_seq = "".join(sequence_input.split()).upper()
 
     if cleaned_seq:
@@ -32,33 +91,35 @@ with tab1:
             col2.metric("GC-Content", f"{gc_fraction(dna_seq)*100:.2f}%")
             
             st.subheader("Transcription & Translation")
-            st.code(f"RNA: {dna_seq.transcribe()}", language="text")
-            protein = dna_seq.translate()
-            st.code(f"Protein: {protein}", language="text")
+            st.write("**RNA Sequence:**")
+            st.code(str(dna_seq.transcribe()), language="text")
             
-            # رسم توزيع الأحماض الأمينية
+            protein = dna_seq.translate()
+            st.write("**Protein Sequence (Amino Acids):**")
+            st.code(str(protein), language="text")
+            
+            st.subheader("📈 Amino Acid Frequency Distribution")
             aa_counts = {aa: protein.count(aa) for aa in set(protein) if aa != "*"}
             if aa_counts:
                 df = pd.DataFrame(list(aa_counts.items()), columns=['Amino Acid', 'Frequency']).set_index('Amino Acid')
                 st.bar_chart(df)
         else:
-            st.error("⚠️ Invalid DNA sequence! Please use A, T, C, G bases only.")
+            st.error("⚠️️ Invalid DNA sequence! Please use A, T, C, G bases only.")
 
 # ---------------------------------------------------------
-# TAB 2: تصميم وتطوير بادئات الـ PCR (هندسة أجهزة التشخيص)
+# TAB 3: Diagnostic PCR Primer Design
 # ---------------------------------------------------------
-with tab2:
+with tab3:
     st.header("🔬 Diagnostic PCR Primer Thermodynamics")
     st.write("Analyze primer suitability for thermal cyclers and diagnostic qPCR devices.")
     
-    primer_input = st.text_input("Enter Diagnostic Primer Sequence (18-30 bp):", "ATGCGATCGATCGATCGATC", key="t2_primer")
+    primer_input = st.text_input("Enter Diagnostic Primer Sequence (18-30 bp):", "ATGCGATCGATCGATCGATC", key="t3_primer")
     cleaned_primer = "".join(primer_input.split()).upper()
     
     if cleaned_primer:
         if set(cleaned_primer).issubset(set("ATCG")):
             primer_seq = Seq(cleaned_primer)
             
-            # حساب درجة حرارة الانصهار بالتنبوء الحراري (Thermodynamical Nearest-Neighbor)
             tm_val = mt.Tm_NN(primer_seq)
             gc_val = gc_fraction(primer_seq) * 100
             
@@ -67,7 +128,6 @@ with tab2:
             c2.metric("GC Ratio", f"{gc_val:.1f}%")
             c3.metric("Melting Temp ($T_m$)", f"{tm_val:.2f} °C")
             
-            # تقييم ملاءمة البادئ لأجهزة الفحص الحراري
             st.subheader("Diagnostic Suitability Verdict:")
             if 18 <= len(primer_seq) <= 30 and 55 <= tm_val <= 65 and 40 <= gc_val <= 60:
                 st.success("✅ **Optimal Primer:** Excellent parameters for standard diagnostic PCR assays.")
@@ -77,9 +137,9 @@ with tab2:
             st.error("⚠️ Invalid primer bases! Use A, T, C, G only.")
 
 # ---------------------------------------------------------
-# TAB 3: كاشف الطفرات السريرية (Clinical Mutation Detector)
+# TAB 4: Clinical Mutation Detector
 # ---------------------------------------------------------
-with tab3:
+with tab4:
     st.header("🩺 Clinical Mutation & Variant Detector")
     st.write("Compare a patient sequence against a reference sequence to detect single nucleotide mutations (SNPs).")
     
