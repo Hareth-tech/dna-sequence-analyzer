@@ -1,5 +1,3 @@
 streamlit
 biopython
 pandas
-py3Dmol
-stmol
